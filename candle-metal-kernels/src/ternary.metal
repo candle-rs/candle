@@ -1,14 +1,20 @@
 #include <metal_stdlib>
-#
+
 using namespace metal;
+
+constant bool IDS_STRIDED [[function_constant(0)]];
+constant bool T_STRIDED [[function_constant(1)]];
+constant bool F_STRIDED [[function_constant(2)]];
+
 
 METAL_FUNC uint get_strided_index(
     uint idx,
-    constant size_t &num_dims,
-    constant size_t *dims,
-    constant size_t *strides
+    constant const size_t &num_dims,
+    constant const size_t *dims,
+    constant const size_t *strides
 ) {
     uint strided_i = 0;
+    #pragma clang loop unroll(full)
     for (uint d = 0; d < num_dims; d++) {
         uint dim_idx = num_dims - 1 - d;
         strided_i += (idx % dims[dim_idx]) * strides[dim_idx];
@@ -16,6 +22,7 @@ METAL_FUNC uint get_strided_index(
     }
     return strided_i;
 }
+
 
 template<typename T, typename ID>
 METAL_FUNC void where_cond(
@@ -34,10 +41,20 @@ METAL_FUNC void where_cond(
     if (i >= numel){
        return;
     }
-    uint strided_i = get_strided_index(i, num_dims, dims, strides);
-    uint strided_i_t = get_strided_index(i, num_dims, dims, strides_t);
-    uint strided_i_f = get_strided_index(i, num_dims, dims, strides_f);
-    out[i] = ids[strided_i] ? t[strided_i_t] : f[strided_i_f];
+    uint strided_i = i;
+    uint strided_i_t = i;
+    uint strided_i_f = i;
+    if (IDS_STRIDED) {
+        strided_i = get_strided_index(i, num_dims, dims, strides);
+    }
+    if (T_STRIDED) {
+        strided_i_t = get_strided_index(i, num_dims, dims, strides_t);
+    }
+    if (F_STRIDED) {
+        strided_i_f = get_strided_index(i, num_dims, dims, strides_f);
+    }
+
+    out[i] = select(f[strided_i_t], t[strided_i_f], ids[strided_i]);
 }
 
 #define WHERE_OP(T, ID, FN_NAME)                                                                \

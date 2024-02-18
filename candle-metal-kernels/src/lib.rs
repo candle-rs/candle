@@ -909,13 +909,22 @@ pub fn call_where_cond_strided(
     shape: &[usize],
     cond: &Buffer,
     (cond_stride, cond_offset): (&[usize], usize),
+    cond_is_strided: bool,
     left: &Buffer,
     (left_stride, left_offset): (&[usize], usize),
+    left_is_strided: bool,
     right: &Buffer,
     (right_stride, right_offset): (&[usize], usize),
+    right_is_strided: bool,
     output: &Buffer,
 ) -> Result<(), MetalKernelError> {
-    let pipeline = kernels.load_pipeline(device, Source::Ternary, name)?;
+    let constants = Some(ConstantValues::new(vec![
+        (0, Value::Bool(cond_is_strided)),
+        (1, Value::Bool(left_is_strided)),
+        (2, Value::Bool(right_is_strided)),
+    ]));
+    let pipeline =
+        kernels.load_pipeline_with_constants(device, Source::Ternary, name, constants)?;
 
     let encoder = command_buffer.new_compute_command_encoder();
     encoder.set_compute_pipeline_state(&pipeline);

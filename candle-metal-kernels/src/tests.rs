@@ -822,10 +822,13 @@ fn run_where_cond<I: Clone, T: Clone>(
         shape,
         &cond,
         (&cond_stride, cond_offset),
+        true,
         &left,
         (&left_stride, left_offset),
+        true,
         &right,
         (&cond_stride, cond_offset),
+        true,
         &output,
     )
     .unwrap();

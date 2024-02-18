@@ -826,10 +826,13 @@ impl BackendStorage for MetalStorage {
                 layout.stride(),
                 layout.start_offset() * self.dtype.size_in_bytes(),
             ),
+            !layout.is_contiguous(),
             &t.buffer,
             (&t_l.stride(), t_l.start_offset() * t.dtype.size_in_bytes()),
+            !t_l.is_contiguous(),
             &f.buffer,
             (&f_l.stride(), f_l.start_offset() * f.dtype.size_in_bytes()),
+            !f_l.is_contiguous(),
             &buffer,
         )
         .map_err(MetalError::from)?;
