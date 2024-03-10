@@ -4,6 +4,7 @@ use crate::op::{BinaryOpT, CmpOp, ReduceOp, UnaryOpT};
 use crate::{CpuStorage, DType, Layout, Result, Shape};
 use candle_metal_kernels;
 use candle_metal_kernels::Kernels;
+use half::{bf16, f16};
 use metal;
 use metal::{Buffer, CommandBuffer, CommandQueue, MTLResourceOptions, NSUInteger};
 use std::collections::HashMap;
@@ -1624,9 +1625,41 @@ impl BackendDevice for MetalDevice {
     }
 
     fn ones_impl(&self, shape: &Shape, dtype: DType) -> Result<Self::Storage> {
-        // TODO Is there a faster way ?
-        let cpu_storage = crate::cpu_backend::CpuDevice.ones_impl(shape, dtype)?;
-        self.storage_from_cpu_storage(&cpu_storage)
+        let buffer = self.new_buffer(shape.elem_count(), dtype, "ones")?;
+        let command_buffer = self.command_buffer()?;
+        command_buffer.set_label("ones");
+
+        macro_rules! fill {
+            ($value:expr) => {
+                candle_metal_kernels::call_fill(
+                    &self.device,
+                    &command_buffer,
+                    &self.kernels,
+                    shape.elem_count(),
+                    &buffer,
+                    $value,
+                )
+                .map_err(MetalError::from)?
+            };
+        }
+        match dtype {
+            DType::U8 => candle_metal_kernels::call_fill_u8(
+                &command_buffer,
+                shape.elem_count(),
+                &buffer,
+                1u8,
+            )
+            .map_err(MetalError::from)?,
+            DType::U32 => fill!(1u32),
+            DType::I64 => fill!(1i64),
+            DType::BF16 => fill!(bf16::ONE),
+            DType::F16 => fill!(f16::ONE),
+            DType::F32 => fill!(1f32),
+            DType::F64 => {
+                return Err(MetalError::Message("Metal doesn't support double".to_string()).into())
+            }
+        }
+        Ok(MetalStorage::new(buffer, self.clone(), dtype))
     }
 
     fn storage_from_cpu_storage(&self, storage: &CpuStorage) -> Result<Self::Storage> {

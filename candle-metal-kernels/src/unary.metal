@@ -1,6 +1,5 @@
 #include <metal_stdlib>
 #include <metal_math>
-#
 using namespace metal;
 
 METAL_FUNC uint get_strided_index(

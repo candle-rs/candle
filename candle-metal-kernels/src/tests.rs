@@ -946,6 +946,42 @@ fn gemm() {
     );
 }
 
+fn run_fill<T: FillOp + Clone>(elem_count: usize, value: T) -> Vec<T> {
+    let device = device();
+    let kernels = Kernels::new();
+    let command_queue = device.new_command_queue();
+    let command_buffer = command_queue.new_command_buffer();
+    let buffer = new_buffer(&device, &vec![0.0f32; elem_count]);
+    call_fill(
+        &device,
+        command_buffer,
+        &kernels,
+        elem_count,
+        &buffer,
+        value,
+    )
+    .unwrap();
+    command_buffer.commit();
+    command_buffer.wait_until_completed();
+
+    read_to_vec(&buffer, elem_count)
+}
+
+#[test]
+fn fill() {
+    fn assert_fill<T: FillOp + Copy + std::fmt::Debug + PartialEq>(value: T) {
+        for i in 0..4 {
+            assert_eq!(run_fill(8 ^ i, value), vec![value; 8 ^ i]);
+        }
+    }
+    assert_fill(123u8);
+    assert_fill(456u32);
+    assert_fill(789i64);
+    assert_fill(f16::from_f32(1.23));
+    assert_fill(bf16::from_f32(4.56));
+    assert_fill(7.89f32);
+}
+
 fn run_random<T: Clone>(name: &'static str, seed: u32, length: usize, a: f32, b: f32) -> Vec<T> {
     let device = device();
     let kernels = Kernels::new();

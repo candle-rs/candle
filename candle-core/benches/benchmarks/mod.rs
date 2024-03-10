@@ -1,4 +1,5 @@
 pub(crate) mod affine;
+pub(crate) mod fill;
 pub(crate) mod matmul;
 pub(crate) mod random;
 pub(crate) mod where_cond;

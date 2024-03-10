@@ -1,3 +1,4 @@
+use half::{bf16, f16};
 use metal::{
     Buffer, CommandBufferRef, CompileOptions, ComputeCommandEncoderRef, ComputePipelineState,
     Device, Function, FunctionConstantValues, Library, MTLDataType, MTLSize, NSUInteger,
@@ -12,6 +13,7 @@ const UNARY: &str = include_str!("unary.metal");
 const BINARY: &str = include_str!("binary.metal");
 const TERNARY: &str = include_str!("ternary.metal");
 const CAST: &str = include_str!("cast.metal");
+const FILL: &str = include_str!("fill.metal");
 const CONV: &str = include_str!("conv.metal");
 const REDUCE: &str = include_str!("reduce.metal");
 const RANDOM: &str = include_str!("random.metal");
@@ -47,29 +49,26 @@ fn set_param<P: EncoderParam>(encoder: &ComputeCommandEncoderRef, position: u64,
 /// Helper functions to create the various objects on the compute command encoder
 /// on a single line.
 /// Prevents getting wrong some arguments number and mixing length and size in bytes.
-trait EncoderParam {
+pub trait EncoderParam: private::Sealed {
     fn set_param(encoder: &ComputeCommandEncoderRef, position: u64, data: Self);
 }
-macro_rules! primitive {
-    ($type:ty) => {
-        impl EncoderParam for $type {
-            fn set_param(encoder: &ComputeCommandEncoderRef, position: u64, data: Self) {
-                encoder.set_bytes(
-                    position,
-                    core::mem::size_of::<$type>() as u64,
-                    &data as *const $type as *const c_void,
-                );
+
+macro_rules! primitives {
+    ($($type:ty),+) => {
+        $(
+            impl EncoderParam for $type {
+                fn set_param(encoder: &ComputeCommandEncoderRef, position: u64, data: Self) {
+                    encoder.set_bytes(
+                        position,
+                        core::mem::size_of::<$type>() as u64,
+                        &data as *const $type as *const c_void,
+                    );
+                }
             }
-        }
+        )+
     };
 }
-primitive!(bool);
-primitive!(usize);
-primitive!(i32);
-primitive!(i64);
-primitive!(u32);
-primitive!(u64);
-primitive!(f32);
+primitives!(bool, usize, u8, u32, u64, i32, i64, f16, bf16, f32);
 
 impl<T> EncoderParam for &[T] {
     fn set_param(encoder: &ComputeCommandEncoderRef, position: u64, data: Self) {
@@ -112,6 +111,22 @@ macro_rules! set_params {
     );
 }
 
+// Seal for EncoderParam so that only the types we want can implement it
+mod private {
+    use super::*;
+
+    pub trait Sealed {}
+
+    macro_rules! sealed {
+        ($($type:ty),+) => {
+            $(impl Sealed for $type {})+
+        };
+    }
+    sealed!(usize, u8, u32, u64, i32, i64, f16, bf16, f32, bool);
+    sealed!(&Buffer, (&Buffer, usize), &mut Buffer, (&mut Buffer, usize));
+    impl<T> Sealed for &[T] {}
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Source {
     Affine,
@@ -123,6 +138,7 @@ pub enum Source {
     Reduce,
     Mfa,
     Conv,
+    Fill,
     Random,
     Quantized,
 }
@@ -192,6 +208,8 @@ pub mod binary {
 
 #[derive(thiserror::Error, Debug)]
 pub enum MetalKernelError {
+    #[error("Invalid usage of kernel: {0}")]
+    InvalidUsage(String),
     #[error("Could not lock kernel map: {0}")]
     LockError(String),
     #[error("Error while loading library: {0}")]
@@ -244,6 +262,7 @@ impl Kernels {
             Source::Indexing => INDEXING,
             Source::Cast => CAST,
             Source::Reduce => REDUCE,
+            Source::Fill => FILL,
             Source::Conv => CONV,
             Source::Random => RANDOM,
             Source::Quantized => QUANTIZED,
@@ -1772,9 +1791,68 @@ pub fn call_quantized_matmul_t(
     Ok(())
 }
 
+#[inline(always)]
 fn divide(m: usize, b: usize) -> NSUInteger {
     ((m + b - 1) / b) as NSUInteger
 }
+
+pub fn call_fill<T: FillOp>(
+    device: &Device,
+    command_buffer: &CommandBufferRef,
+    kernels: &Kernels,
+    elem_count: usize,
+    buffer: &Buffer,
+    value: T,
+) -> Result<(), MetalKernelError> {
+    let pipeline = kernels.load_pipeline(device, Source::Fill, T::FILL_KERNEL)?;
+    let encoder = command_buffer.new_compute_command_encoder();
+    encoder.set_compute_pipeline_state(&pipeline);
+    encoder.set_threadgroup_memory_length(0, elem_count as NSUInteger);
+
+    set_params!(encoder, (buffer, value, elem_count));
+
+    let (thread_group_count, thread_group_size) = linear_split(&pipeline, elem_count);
+    encoder.dispatch_thread_groups(thread_group_count, thread_group_size);
+    encoder.use_resource(buffer, metal::MTLResourceUsage::Write);
+    encoder.end_encoding();
+
+    Ok(())
+}
+
+pub fn call_fill_u8(
+    command_buffer: &CommandBufferRef,
+    elem_count: usize,
+    buffer: &Buffer,
+    value: u8,
+) -> Result<(), MetalKernelError> {
+    let blit = command_buffer.new_blit_command_encoder();
+    blit.fill_buffer(
+        buffer,
+        metal::NSRange {
+            location: 0,
+            length: elem_count as NSUInteger,
+        },
+        value,
+    );
+    blit.end_encoding();
+
+    Ok(())
+}
+
+pub trait FillOp: EncoderParam {
+    const FILL_KERNEL: &'static str;
+}
+
+macro_rules ! impl_call_fill {
+    ($($t:ty),*) => {
+        $(
+            impl FillOp for $t {
+                const FILL_KERNEL: &'static str = concat!("fill_", stringify!($t));
+            }
+        )*
+    };
+}
+impl_call_fill!(u8, u32, i64, f16, bf16, f32);
 
 #[cfg(test)]
 mod tests;
