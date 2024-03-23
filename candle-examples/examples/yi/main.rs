@@ -231,7 +231,11 @@ fn main() -> Result<()> {
     };
     let device = candle_examples::device(args.cpu)?;
     let dtype = if device.is_cuda() {
-        DType::BF16
+        if device.support_native_bf16()? {
+            DType::BF16
+        } else {
+            DType::F16
+        }
     } else {
         DType::F32
     };

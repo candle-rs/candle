@@ -13,7 +13,11 @@ macro_rules! fail {
         unimplemented!("cuda support has not been enabled, add `cuda` feature to enable.")
     };
 }
-
+impl CudaDevice {
+    pub fn support_native_bf16(&self) -> Result<bool> {
+        Err(Error::NotCompiledWithCudaSupport)
+    }
+}
 impl crate::backend::BackendStorage for CudaStorage {
     type Device = CudaDevice;
 

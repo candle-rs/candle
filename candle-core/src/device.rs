@@ -166,6 +166,13 @@ impl Device {
     pub fn is_cuda(&self) -> bool {
         matches!(self, Self::Cuda(_))
     }
+    pub fn support_native_bf16(&self) -> Result<bool> {
+        match self {
+            Self::Cpu => Ok(true),
+            Self::Cuda(c) => c.support_native_bf16(),
+            Self::Metal(_) => Ok(true),
+        }
+    }
 
     pub fn is_metal(&self) -> bool {
         matches!(self, Self::Metal(_))

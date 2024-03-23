@@ -253,7 +253,11 @@ fn main() -> Result<()> {
         (Model::Quantized(model), device)
     } else {
         let dtype = if device.is_cuda() {
-            DType::BF16
+            if device.support_native_bf16()? {
+                DType::BF16
+            } else {
+                DType::F16
+            }
         } else {
             DType::F32
         };

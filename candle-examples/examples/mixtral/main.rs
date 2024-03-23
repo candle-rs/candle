@@ -218,7 +218,11 @@ fn main() -> Result<()> {
     let config = Config::v0_1_8x7b(args.use_flash_attn);
     let device = candle_examples::device(args.cpu)?;
     let dtype = if device.is_cuda() {
-        DType::BF16
+        if device.support_native_bf16()? {
+            DType::BF16
+        } else {
+            DType::F16
+        }
     } else {
         DType::F32
     };

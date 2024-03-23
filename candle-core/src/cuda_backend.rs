@@ -144,6 +144,22 @@ impl CudaDevice {
         self.id
     }
 
+    pub fn support_native_bf16(&self) -> Result<bool> {
+        let elem_count = 1;
+        let cfg = LaunchConfig::for_num_elems(elem_count as u32);
+        let data = unsafe { self.alloc::<u8>(elem_count) }.w()?;
+        let func = self.get_or_load_func("support_native_bf16", kernels::CAST)?;
+        let v: u8 = 0;
+        let params = (&data, v, elem_count);
+        unsafe { func.launch(cfg, params) }.w()?;
+
+        let ret = self.dtoh_sync_copy(&data).w()?;
+        match ret.first() {
+            None => Ok(false),
+            Some(r) => Ok(*r == 1u8),
+        }
+    }
+
     fn const_impl(&self, v: f64, shape: &Shape, dtype: DType) -> Result<CudaStorage> {
         let elem_count = shape.elem_count();
         let cfg = LaunchConfig::for_num_elems(elem_count as u32);

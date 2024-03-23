@@ -172,8 +172,10 @@ fn main() -> Result<()> {
     let start = std::time::Instant::now();
     let dtype = if args.use_f32 {
         DType::F32
-    } else {
+    } else if device.support_native_bf16()? {
         DType::BF16
+    } else {
+        DType::F16
     };
     let vb = unsafe { VarBuilder::from_mmaped_safetensors(&filenames, dtype, &device)? };
     let config = Config::falcon7b();
