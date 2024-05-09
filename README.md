@@ -408,3 +408,10 @@ This may be caused by the models being loaded from `/mnt/c`, more details on
 
 You can set `RUST_BACKTRACE=1` to be provided with backtraces when a candle
 error is generated.
+
+
+## Stargazers over time
+
+[![Stargazers over time](https://starchart.cc/huggingface/candle.svg?variant=adaptive)](https://starchart.cc/huggingface/candle)
+
+
