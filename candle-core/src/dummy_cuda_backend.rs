@@ -182,6 +182,7 @@ impl crate::backend::BackendStorage for CudaStorage {
     fn upsample_nearest2d(&self, _: &Layout, _: usize, _: usize) -> Result<Self> {
         Err(Error::NotCompiledWithCudaSupport)
     }
+
 }
 
 impl crate::backend::BackendDevice for CudaDevice {

@@ -135,6 +135,8 @@ We also provide a some command line based examples using state of the art models
   model, generates the translated text from the input text.
 - [Moondream](./candle-examples/examples/moondream/): tiny computer-vision model 
   that can answer real-world questions about images.
+- [DepthAnythingV2](./candle-examples/examples/depth_anything_v2/): depth estimation model based on the 
+  DinoV2 vision transformer
 
 Run them using commands like:
 ```

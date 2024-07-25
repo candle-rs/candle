@@ -447,6 +447,7 @@ impl Map1 for UpsampleNearest2D {
     }
 }
 
+
 struct Gather<'a, I: IntDType> {
     ids: &'a [I],
     ids_l: &'a Layout,

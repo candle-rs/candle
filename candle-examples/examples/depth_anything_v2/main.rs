@@ -11,94 +11,90 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-use candle::DType::{F32, U8};
-use candle::{DType, Device, Module, Result, Tensor};
-use candle_examples::{load_image, load_image_and_resize, save_image};
+use args::Args;
+use candle::{Device, Module};
+use candle::DType::F32;
+use candle_examples::save_image;
 use candle_nn::VarBuilder;
 use candle_transformers::models::depth_anything_v2::{DepthAnythingV2, DepthAnythingV2Config};
 use candle_transformers::models::dinov2;
 
-use crate::color_map::SpectralRColormap;
+use crate::args::ModelSize;
 
+mod args;
 mod color_map;
-
-// taken these from: https://huggingface.co/spaces/depth-anything/Depth-Anything-V2/blob/main/depth_anything_v2/dpt.py#L207
-const MAGIC_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
-const MAGIC_STD: [f32; 3] = [0.229, 0.224, 0.225];
-
-const DINO_IMG_SIZE: usize = 518;
-
-#[derive(Parser)]
-struct Args {
-    #[arg(long)]
-    dinov2_model: Option<PathBuf>,
-
-    #[arg(long)]
-    depth_anything_v2_model: Option<PathBuf>,
-
-    #[arg(long)]
-    image: PathBuf,
-
-    #[arg(long)]
-    output_dir: Option<PathBuf>,
-
-    #[arg(long)]
-    cpu: bool,
-
-    #[arg(long)]
-    color_map: bool,
-}
+mod image_ops;
 
 pub fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let device = candle_examples::device(args.cpu)?;
 
-    let dinov2_model_file = match args.dinov2_model {
-        None => {
-            let api = hf_hub::api::sync::Api::new()?;
-            let api = api.model("lmz/candle-dino-v2".into());
-            api.get("dinov2_vits14.safetensors")?
-        }
-        Some(dinov2_model) => dinov2_model,
-    };
-    println!("Using file {:?}", dinov2_model_file);
+    let mut depth_anything =
+        depth_anything_model(&args.size, args.depth_anything_v2_model, &device)?;
+    println!("Depth Anything model built");
 
-    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[dinov2_model_file], F32, &device)? };
-    let dinov2 = dinov2::vit_small(vb)?;
-    println!("DinoV2 model built");
-
-    let depth_anything_model_file = match args.depth_anything_v2_model {
-        None => {
-            let api = hf_hub::api::sync::Api::new()?;
-            let api = api.model("jeroenvlek/depth-anything-v2-safetensors".into());
-            api.get("depth_anything_v2_vits.safetensors")?
-        }
-        Some(depth_anything_model) => depth_anything_model,
-    };
-    println!("Using file {:?}", depth_anything_model_file);
-
-    let vb = unsafe {
-        VarBuilder::from_mmaped_safetensors(&[depth_anything_model_file], DType::F32, &device)?
-    };
-
-    let config = DepthAnythingV2Config::vit_small();
-    let depth_anything = DepthAnythingV2::new(&dinov2, &config, vb)?;
-
-    let (original_height, original_width, image) = load_and_prep_image(&args.image, &device)?;
+    let (original_height, original_width, image) =
+        image_ops::load_and_prep_image(&args.image, &device)?;
 
     println!("Loaded image {image:?}");
 
+    let (_, _, image_height, image_width) = image.dims4()?;
+    depth_anything.set_image_and_patch_size(image_height, image_width);
     let depth = depth_anything.forward(&image)?;
 
-    println!("Got predictions {:?}", depth.shape());
+    println!("Got predictions {depth:?}");
 
-    let output_image = post_process_image(&depth, original_height, original_width, args.color_map)?;
+    let output_image =
+        image_ops::post_process_image(&depth, original_height, original_width, args.color_map)?;
 
     let output_path = full_output_path(&args.image, &args.output_dir);
     println!("Saving image to {}", output_path.to_string_lossy());
     save_image(&output_image, output_path)?;
 
     Ok(())
+}
+
+
+fn depth_anything_model(
+    model_size: &ModelSize,
+    depth_anything_v2_model: Option<PathBuf>,
+    device: &Device,
+) -> anyhow::Result<DepthAnythingV2> {
+    let api = hf_hub::api::sync::Api::new()?;
+    let depth_anything_path = match depth_anything_v2_model {
+        None => match model_size {
+            ModelSize::S => api
+                .model("jeroenvlek/depth-anything-v2-safetensors".into())
+                .get("depth_anything_v2_vits.safetensors")?,
+            ModelSize::B => api
+                .model("jeroenvlek/depth-anything-v2-safetensors".into())
+                .get("depth_anything_v2_vitb.safetensors")?,
+            ModelSize::L => api
+                .model("jeroenvlek/depth-anything-v2-safetensors".into())
+                .get("depth_anything_v2_vitl.safetensors")?,
+            ModelSize::G => todo!("At the time of writing the giant model isn't released yet"),
+        },
+        Some(depth_anything_model) => depth_anything_model,
+    };
+    println!("Using file {:?}", depth_anything_path);
+
+    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[depth_anything_path], F32, &device)? };
+    let vb_dino = vb.push_prefix("pretrained");
+    let dinov2 = match model_size {
+        ModelSize::S => dinov2::vit_small(vb_dino, None)?,
+        ModelSize::B => dinov2::vit_base(vb_dino, None)?,
+        ModelSize::L => dinov2::vit_large(vb_dino, None)?,
+        ModelSize::G => dinov2::vit_giant(vb_dino, None)?,
+    };
+
+    let config = match model_size {
+        ModelSize::S => DepthAnythingV2Config::vit_small(),
+        ModelSize::B => DepthAnythingV2Config::vit_base(),
+        ModelSize::L => DepthAnythingV2Config::vit_large(),
+        ModelSize::G => DepthAnythingV2Config::vit_giant(),
+    };
+
+    Ok(DepthAnythingV2::new(dinov2, config, vb)?)
 }
 
 fn full_output_path(image_path: &PathBuf, output_dir: &Option<PathBuf>) -> PathBuf {
@@ -112,76 +108,4 @@ fn full_output_path(image_path: &PathBuf, output_dir: &Option<PathBuf>) -> PathB
     output_path.push(output_file_name);
 
     output_path
-}
-
-fn load_and_prep_image(
-    image_path: &PathBuf,
-    device: &Device,
-) -> anyhow::Result<(usize, usize, Tensor)> {
-    let (_original_image, original_height, original_width) = load_image(&image_path, None)?;
-
-    let image = load_image_and_resize(&image_path, DINO_IMG_SIZE, DINO_IMG_SIZE)?
-        .unsqueeze(0)?
-        .to_dtype(F32)?
-        .to_device(&device)?;
-
-    let max_pixel_val = Tensor::try_from(255.0f32)?
-        .to_device(&device)?
-        .broadcast_as(image.shape())?;
-    let image = (image / max_pixel_val)?;
-    let image = normalize_image(&image, &MAGIC_MEAN, &MAGIC_STD)?;
-
-    Ok((original_height, original_width, image))
-}
-
-fn normalize_image(image: &Tensor, mean: &[f32; 3], std: &[f32; 3]) -> Result<Tensor> {
-    let mean_tensor =
-        Tensor::from_vec(mean.to_vec(), (3, 1, 1), &image.device())?.broadcast_as(image.shape())?;
-    let std_tensor =
-        Tensor::from_vec(std.to_vec(), (3, 1, 1), &image.device())?.broadcast_as(image.shape())?;
-    image.sub(&mean_tensor)?.div(&std_tensor)
-}
-
-fn post_process_image(
-    image: &Tensor,
-    original_height: usize,
-    original_width: usize,
-    color_map: bool,
-) -> Result<Tensor> {
-    let out = image.interpolate2d(original_height, original_width)?;
-    let out = scale_image(&out)?;
-
-    let out = if color_map {
-        let spectral_r = SpectralRColormap::new();
-        spectral_r.gray2color(&out)?
-    } else {
-        let rgb_slice = [&out, &out, &out];
-        Tensor::cat(&rgb_slice, 0)?.squeeze(1)?
-    };
-
-    let max_pixel_val = Tensor::try_from(255.0f32)?
-        .to_device(out.device())?
-        .broadcast_as(out.shape())?;
-    let out = (out * max_pixel_val)?;
-
-    out.to_dtype(U8)
-}
-
-fn scale_image(depth: &Tensor) -> Result<Tensor> {
-    let flat_values: Vec<f32> = depth.flatten_all()?.to_vec1()?;
-
-    let min_val = flat_values.iter().min_by(|a, b| a.total_cmp(b)).unwrap();
-    let max_val = flat_values.iter().max_by(|a, b| a.total_cmp(b)).unwrap();
-
-    let min_val_tensor = Tensor::try_from(*min_val)?
-        .to_device(depth.device())?
-        .broadcast_as(depth.shape())?;
-    let depth = (depth - min_val_tensor)?;
-
-    let range = max_val - min_val;
-    let range_tensor = Tensor::try_from(range)?
-        .to_device(depth.device())?
-        .broadcast_as(depth.shape())?;
-
-    depth / range_tensor
 }

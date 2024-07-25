@@ -1,4 +1,5 @@
-use candle::{IndexOp, Result, Tensor, D};
+use candle::{D, IndexOp, Result, Tensor};
+use candle::D::Minus1;
 use candle_nn::{layer_norm, LayerNorm, Linear, Module, VarBuilder};
 
 const IMG_SIZE: usize = 518;
@@ -16,7 +17,7 @@ fn linear(vb: VarBuilder, in_dim: usize, out_dim: usize, bias: bool) -> Result<L
 #[derive(Debug)]
 struct Attention {
     qkv: Linear,
-    proj: Linear,
+    output: Linear,
     num_heads: usize,
     scale: f64,
 }
@@ -29,12 +30,13 @@ impl Attention {
         qkv_bias: bool,
         proj_bias: bool,
     ) -> Result<Self> {
-        let qkv = linear(vb.pp("qkv"), dim, dim * 3, qkv_bias)?;
-        let proj = linear(vb.pp("proj"), dim, dim, proj_bias)?;
+        let qkv = linear(vb.pp("qkv"), dim, 3 *dim, qkv_bias)?;
+
+        let output = linear(vb.pp("proj"), dim, dim, proj_bias)?;
         let scale = 1. / ((dim / num_heads) as f64).sqrt();
         Ok(Self {
             qkv,
-            proj,
+            output,
             num_heads,
             scale,
         })
@@ -54,27 +56,27 @@ impl Module for Attention {
         let q = (qkv.i(0)? * self.scale)?;
         let k = qkv.i(1)?.contiguous()?;
         let v = qkv.i(2)?.contiguous()?;
-        let attn = candle_nn::ops::softmax(&q.matmul(&k.t()?)?, D::Minus1)?;
+        let attn = candle_nn::ops::softmax(&q.matmul(&k.t()?)?, Minus1)?;
         let attn = attn.matmul(&v)?.transpose(1, 2)?.reshape((b, n, c))?;
-        self.proj.forward(&attn)
+        self.output.forward(&attn)
     }
 }
 
 #[derive(Debug)]
 struct LayerScale {
-    gamma: Tensor,
+    lambda: Tensor,
 }
 
 impl LayerScale {
     fn new(vb: VarBuilder, dim: usize) -> Result<Self> {
         let gamma = vb.get(dim, "gamma")?;
-        Ok(Self { gamma })
+        Ok(Self { lambda: gamma })
     }
 }
 
 impl Module for LayerScale {
     fn forward(&self, xs: &Tensor) -> Result<Tensor> {
-        xs.broadcast_mul(&self.gamma)
+        xs.broadcast_mul(&self.lambda)
     }
 }
 
@@ -197,24 +199,38 @@ pub struct DinoVisionTransformer {
     pos_embed: Tensor,
     blocks: Vec<Block>,
     norm: LayerNorm,
-    head: Linear,
+    head: Option<Linear>,
 }
 
 impl DinoVisionTransformer {
-    pub fn new(vb: VarBuilder, depth: usize, embed_dim: usize, num_heads: usize) -> Result<Self> {
-        let patch_embed =
-            PatchEmbed::new(vb.pp("patch_embed"), IMG_SIZE, PATCH_SIZE, 3, embed_dim)?;
+    pub fn new(
+        vb: VarBuilder,
+        vb_head: Option<VarBuilder>,
+        depth: usize,
+        embed_dim: usize,
+        num_heads: usize,
+    ) -> Result<Self> {
+        let patch_embed = PatchEmbed::new(
+            vb.pp("patch_embed"),
+            IMG_SIZE,
+            PATCH_SIZE,
+            3,
+            embed_dim,
+        )?;
         let cls_token = vb.get((1, 1, embed_dim), "cls_token")?;
         let num_tokens = 1;
         let pos_embed = vb.get(
             (1, patch_embed.num_patches + num_tokens, embed_dim),
             "pos_embed",
         )?;
-        let head = linear(vb.pp("head"), 2 * embed_dim, NUM_CLASSES, true)?;
+        let head = match vb_head {
+            Some(vb_head) => Some(linear(vb_head, 2 * embed_dim, NUM_CLASSES, true)?),
+            None => None,
+        };
         let norm = layer_norm(embed_dim, 1e-5, vb.pp("norm"))?;
-        let vb_b = vb.pp("blocks");
+        let vb_layer = vb.pp("blocks");
         let blocks = (0..depth)
-            .map(|i| Block::new(vb_b.pp(&i.to_string()), embed_dim, num_heads))
+            .map(|i| Block::new(vb_layer.pp(&i.to_string()), embed_dim, num_heads))
             .collect::<Result<Vec<_>>>()?;
         Ok(Self {
             patch_embed,
@@ -241,6 +257,7 @@ impl DinoVisionTransformer {
             .reshape((1, sqrt_n as usize, sqrt_n as usize, dim))?
             .transpose(2, 3)?
             .transpose(1, 2)?;
+
         // This uses bicubic interpolation in the original implementation.
         let patch_pos_embed = patch_pos_embed.upsample_nearest2d(h0 as usize, w0 as usize)?;
         let el_count = patch_pos_embed.shape().elem_count();
@@ -264,6 +281,7 @@ impl DinoVisionTransformer {
         xs: &Tensor,
         blocks_to_take: &[usize],
     ) -> Result<Vec<Tensor>> {
+
         let mut xs = self.prepare_tokens_with_mask(xs)?;
         let mut output = Vec::new();
         for (i, blk) in self.blocks.iter().enumerate() {
@@ -295,10 +313,11 @@ impl DinoVisionTransformer {
             outputs
                 .iter()
                 .map(|out| self.norm.forward(out))
-                .collect::<Result<Vec<_>>>()?
+                .collect::<Result<Vec<Tensor>>>()?
         } else {
             outputs
         };
+
         let class_tokens = outputs
             .iter()
             .map(|out| out.i((.., 0)))
@@ -328,7 +347,7 @@ impl DinoVisionTransformer {
             outputs
                 .iter()
                 .zip(class_tokens.iter())
-                .map(|(out, class_token)| Tensor::cat(&[out, class_token], D::Minus1))
+                .map(|(out, class_token)| Tensor::stack(&[out, class_token], 0))
                 .collect::<Result<Vec<_>>>()?
         } else {
             outputs
@@ -348,10 +367,26 @@ impl Module for DinoVisionTransformer {
         let xs_norm_clstoken = xs.i((.., 0))?;
         let xs_norm_patchtokens = xs.i((.., 1..))?.mean(1)?;
         let xs = Tensor::cat(&[xs_norm_clstoken, xs_norm_patchtokens], D::Minus1)?;
-        self.head.forward(&xs)
+
+        match &self.head {
+            Some(head) => head.forward(&xs),
+            None => Ok(xs),
+        }
     }
 }
 
-pub fn vit_small(vb: VarBuilder) -> Result<DinoVisionTransformer> {
-    DinoVisionTransformer::new(vb, 12, 384, 6)
+pub fn vit_small(vb: VarBuilder, vb_head: Option<VarBuilder>) -> Result<DinoVisionTransformer> {
+    DinoVisionTransformer::new(vb, vb_head, 12, 384, 6)
+}
+
+pub fn vit_base(vb: VarBuilder, vb_head: Option<VarBuilder>) -> Result<DinoVisionTransformer> {
+    DinoVisionTransformer::new(vb, vb_head, 12, 768, 12)
+}
+
+pub fn vit_large(vb: VarBuilder, vb_head: Option<VarBuilder>) -> Result<DinoVisionTransformer> {
+    DinoVisionTransformer::new(vb, vb_head, 24, 1024, 16)
+}
+
+pub fn vit_giant(vb: VarBuilder, vb_head: Option<VarBuilder>) -> Result<DinoVisionTransformer> {
+    DinoVisionTransformer::new(vb, vb_head, 40, 1536, 24)
 }

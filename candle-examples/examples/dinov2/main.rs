@@ -9,6 +9,7 @@ extern crate accelerate_src;
 
 use clap::Parser;
 
+use candle::DType::F32;
 use candle::{DType, IndexOp, D};
 use candle_nn::{Module, VarBuilder};
 use candle_transformers::models::dinov2;
@@ -17,6 +18,9 @@ use candle_transformers::models::dinov2;
 struct Args {
     #[arg(long)]
     model: Option<String>,
+
+    #[arg(long)]
+    head: Option<String>,
 
     #[arg(long)]
     image: String,
@@ -34,17 +38,34 @@ pub fn main() -> anyhow::Result<()> {
     let image = candle_examples::imagenet::load_image224(args.image)?.to_device(&device)?;
     println!("loaded image {image:?}");
 
-    let model_file = match args.model {
+    let dinov2_model_file = match args.model {
         None => {
             let api = hf_hub::api::sync::Api::new()?;
-            let api = api.model("lmz/candle-dino-v2".into());
-            api.get("dinov2_vits14.safetensors")?
+            let api = api.model("facebook/dinov2-small".into());
+            api.get("model.safetensors")?
         }
-        Some(model) => model.into(),
+        Some(dinov2_model) => dinov2_model.into(),
     };
-    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[model_file], DType::F32, &device)? };
-    let model = dinov2::vit_small(vb)?;
-    println!("model built");
+    println!("Using Dinov2 file {:?}", dinov2_model_file);
+
+    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[dinov2_model_file], F32, &device)? };
+
+    let dinov2_head_file = match args.head {
+        None => {
+            let api = hf_hub::api::sync::Api::new()?;
+            let api = api.model("jeroenvlek/dinov2-linear-heads-safetensors".into());
+            api.get("dinov2_vits14_linear_head.safetensors")?
+        }
+        Some(dinov2_head) => dinov2_head.into(),
+    };
+    println!("Using Dinov2 head file {:?}", dinov2_head_file);
+
+    let vb_head =
+        unsafe { VarBuilder::from_mmaped_safetensors(&[dinov2_head_file], F32, &device)? };
+
+    let model = dinov2::vit_small(vb, Some(vb_head))?;
+    println!("DinoV2 model built");
+
     let logits = model.forward(&image.unsqueeze(0)?)?;
     let prs = candle_nn::ops::softmax(&logits, D::Minus1)?
         .i(0)?
