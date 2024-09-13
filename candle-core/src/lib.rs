@@ -80,7 +80,7 @@ pub use cpu_backend::{CpuStorage, CpuStorageRef};
 pub use custom_op::{CustomOp1, CustomOp2, CustomOp3, InplaceOp1, InplaceOp2, InplaceOp3};
 pub use device::{Device, DeviceLocation, NdArray};
 pub use dtype::{DType, DTypeParseError, FloatDType, IntDType, WithDType};
-pub use error::{Error, Result};
+pub use error::{Context, Error, Result};
 pub use indexer::IndexOp;
 pub use layout::Layout;
 pub use shape::{Shape, D};
