@@ -10,7 +10,6 @@ use candle_nn::{ops::softmax, VarBuilder};
 use clap::{Parser, ValueEnum};
 use hf_hub::{api::sync::Api, Repo, RepoType};
 use rand::{distributions::Distribution, SeedableRng};
-use std::iter;
 use tokenizers::Tokenizer;
 
 mod multilingual;
@@ -583,22 +582,55 @@ pub fn main() -> Result<()> {
     let audio_ring_buffer = Arc::new(Mutex::new(Vec::new()));
     let audio_ring_buffer_2 = audio_ring_buffer.clone();
 
-    std::thread::spawn(move || loop {
-        let data = record_audio(&_device, &_config, 300).unwrap();
-        audio_ring_buffer.lock().unwrap().extend_from_slice(&data);
-        let max_len = data.len() * 16;
-        let data_len = data.len();
-        let len = audio_ring_buffer.lock().unwrap().len();
-        if len > max_len {
-            let mut data = audio_ring_buffer.lock().unwrap();
-            let new_data = data[data_len..].to_vec();
-            *data = new_data;
+    std::thread::spawn(move || {
+        let writer = Arc::new(Mutex::new(Vec::new()));
+        let writer_2 = writer.clone();
+        let stream = _device
+            .build_input_stream(
+                &_config.config(),
+                move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                    let processed = data
+                        .iter()
+                        .map(|v| (v * 32768.0) as i16)
+                        .collect::<Vec<i16>>();
+                    writer_2.lock().unwrap().extend_from_slice(&processed);
+                },
+                move |err| {
+                    eprintln!("an error occurred on stream: {}", err);
+                },
+                None,
+            )
+            .expect("failed to build audio input stream");
+        loop {
+            // capture audio for 300ms
+            let listen_for = std::time::Duration::from_millis(300);
+            stream.play().unwrap();
+            std::thread::sleep(listen_for);
+            stream.pause().unwrap();
+
+            let step = 3;
+            let data: Vec<i16> = writer
+                .lock()
+                .unwrap()
+                .iter()
+                .step_by(step)
+                .copied()
+                .collect();
+            audio_ring_buffer.lock().unwrap().extend_from_slice(&data);
+            let max_len = data.len() * 16;
+            let data_len = data.len();
+            let len = audio_ring_buffer.lock().unwrap().len();
+            if len > max_len {
+                let mut data = audio_ring_buffer.lock().unwrap();
+                let new_data = data[data_len..].to_vec();
+                *data = new_data;
+            }
         }
     });
 
     // loop to process the audio data forever (until the user stops the program)
     println!("Transcribing audio...");
-    for (i, _) in iter::repeat(()).enumerate() {
+    for i in 0.. {
         std::thread::sleep(std::time::Duration::from_millis(1000));
         let data = audio_ring_buffer_2.lock().unwrap().clone();
         let pcm_data: Vec<_> = data[..data.len() / channel_count as usize]
@@ -640,34 +672,4 @@ pub fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-fn record_audio(
-    device: &cpal::Device,
-    config: &cpal::SupportedStreamConfig,
-    milliseconds: u64,
-) -> Result<Vec<i16>> {
-    let writer = Arc::new(Mutex::new(Vec::new()));
-    let writer_2 = writer.clone();
-    let stream = device.build_input_stream(
-        &config.config(),
-        move |data: &[f32], _: &cpal::InputCallbackInfo| {
-            let processed = data
-                .iter()
-                .map(|v| (v * 32768.0) as i16)
-                .collect::<Vec<i16>>();
-            writer_2.lock().unwrap().extend_from_slice(&processed);
-        },
-        move |err| {
-            eprintln!("an error occurred on stream: {}", err);
-        },
-        None,
-    )?;
-    stream.play()?;
-    std::thread::sleep(std::time::Duration::from_millis(milliseconds));
-    drop(stream);
-    let data = writer.lock().unwrap().clone();
-    let step = 3;
-    let data: Vec<i16> = data.iter().step_by(step).copied().collect();
-    Ok(data)
 }
