@@ -134,7 +134,7 @@ fn from_raw_data<T: super::GgmlType + Send + Sync + 'static>(
     super::QTensor::new(data, dims)
 }
 
-/// Creates a [Tensor] from a raw GGML tensor.
+/// Creates a [`crate::Tensor`] from a raw GGML tensor.
 pub fn qtensor_from_ggml(
     ggml_dtype: GgmlDType,
     raw_data: &[u8],

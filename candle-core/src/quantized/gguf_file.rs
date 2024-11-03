@@ -1,6 +1,6 @@
 //! Support for the GGUF file format.
 //!
-//! Spec: https://github.com/philpax/ggml/blob/gguf-spec/docs/gguf.md
+//! Spec: <https://github.com/philpax/ggml/blob/gguf-spec/docs/gguf.md>
 
 use super::{GgmlDType, QTensor};
 use crate::{Device, Result};

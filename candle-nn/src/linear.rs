@@ -19,6 +19,7 @@
 //! ```
 use candle::{Result, Tensor};
 
+/// See the documentation for [`mod@super::linear`] for more information.
 #[derive(Clone, Debug)]
 pub struct Linear {
     weight: Tensor,
@@ -76,6 +77,7 @@ pub fn linear_no_bias(in_dim: usize, out_dim: usize, vb: crate::VarBuilder) -> R
     Ok(Linear::new(ws, None))
 }
 
+/// Create or initialize a new linear layer, bias depending on the argument.
 pub fn linear_b(
     in_dim: usize,
     out_dim: usize,

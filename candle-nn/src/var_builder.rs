@@ -509,7 +509,7 @@ impl<'a> VarBuilder<'a> {
     ///
     /// # Safety
     ///
-    /// The unsafe is inherited from [`memmap2::MmapOptions`].
+    /// The unsafe is inherited from [`candle::safetensors::MmapedSafetensors::multi`].
     pub unsafe fn from_mmaped_safetensors<P: AsRef<std::path::Path>>(
         paths: &[P],
         dtype: DType,
@@ -598,7 +598,7 @@ impl ShardedSafeTensors {
     ///
     /// # Safety
     ///
-    /// The unsafe is inherited from [`memmap2::MmapOptions`].
+    /// The unsafe is inherited from [`candle::safetensors::MmapedSafetensors::multi`].
     pub unsafe fn var_builder<P: AsRef<std::path::Path>>(
         paths: &[P],
         dtype: DType,

@@ -1,12 +1,13 @@
+//! Loss functions.
 use candle::{Result, Tensor};
 
 /// The negative log likelihood loss.
 ///
 /// Arguments
 ///
-/// * [inp]: The input tensor of dimensions `N, C` where `N` is the batch size and `C` the number
+/// * `inp`: The input tensor of dimensions `N, C` where `N` is the batch size and `C` the number
 ///          of categories. This is expected to contain log probabilities.
-/// * [target]: The ground truth labels as a tensor of u32 of dimension `N`.
+/// * `target`: The ground truth labels as a tensor of u32 of dimension `N`.
 ///
 /// The resulting tensor is a scalar containing the average value over the batch.
 pub fn nll(inp: &Tensor, target: &Tensor) -> Result<Tensor> {
@@ -31,9 +32,9 @@ pub fn nll(inp: &Tensor, target: &Tensor) -> Result<Tensor> {
 ///
 /// Arguments
 ///
-/// * [inp]: The input tensor of dimensions `N, C` where `N` is the batch size and `C` the number
+/// * `inp`: The input tensor of dimensions `N, C` where `N` is the batch size and `C` the number
 ///          of categories. This is expected to raw logits.
-/// * [target]: The ground truth labels as a tensor of u32 of dimension `N`.
+/// * `target`: The ground truth labels as a tensor of u32 of dimension `N`.
 ///
 /// The resulting tensor is a scalar containing the average value over the batch.
 pub fn cross_entropy(inp: &Tensor, target: &Tensor) -> Result<Tensor> {
@@ -53,9 +54,9 @@ pub fn mse(inp: &Tensor, target: &Tensor) -> Result<Tensor> {
 ///
 /// Arguments
 ///
-/// * [inp]: The input tensor of dimensions `N, C` where `N` is the batch size and `C` the number
+/// * `inp`: The input tensor of dimensions `N, C` where `N` is the batch size and `C` the number
 ///          of categories. This is expected to raw logits.
-/// * [target]: The ground truth labels as a tensor of u32 of dimension `N, C` where `N` is the batch size and `C` the number
+/// * `target`: The ground truth labels as a tensor of u32 of dimension `N, C` where `N` is the batch size and `C` the number
 ///          of categories.
 ///
 /// The resulting tensor is a scalar containing the average value over the batch.
