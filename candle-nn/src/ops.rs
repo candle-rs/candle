@@ -964,3 +964,19 @@ impl Module for Identity {
         Ok(xs.clone())
     }
 }
+
+pub struct TopKOutput {
+    pub values: Tensor,
+    pub indices: Tensor,
+}
+
+/// Top-K in the last dimension
+pub fn topk_last_dim(xs: &Tensor, topk: usize) -> Result<TopKOutput> {
+    // Sorted descending
+    let sorted_indices = xs.arg_sort_last_dim(false)?;
+    let topk_indices = sorted_indices.narrow(D::Minus1, 0, topk)?.contiguous()?;
+    Ok(TopKOutput {
+        values: xs.gather(&topk_indices, D::Minus1)?,
+        indices: topk_indices,
+    })
+}

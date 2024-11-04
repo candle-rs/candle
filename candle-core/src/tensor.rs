@@ -2544,6 +2544,49 @@ impl Tensor {
     pub fn broadcast_pow(&self, rhs: &Tensor) -> Result<Self> {
         rhs.broadcast_mul(&self.log()?)?.exp()
     }
+
+    /// Returns a view of which contains all slices of size `size` from self tensor in the dimension
+    /// `dim` and stepped by `step`.
+    pub fn unfold<D: Dim>(&self, dim: D, size: usize, step: usize) -> Result<Self> {
+        // https://github.com/pytorch/pytorch/blob/75b0720a97ac5d82e8a7a1a6ae7c5f7a87d7183d/aten/src/ATen/native/TensorShape.cpp#L3785-L3804
+        let mut sizes = self.dims().to_vec();
+        let mut strides = self.stride().to_vec();
+
+        let dim = dim.to_index(self.shape(), "unfold")?;
+
+        let max_len = if self.dims().is_empty() {
+            1
+        } else {
+            sizes[dim]
+        };
+        if size > max_len {
+            bail!(
+                "unsqueeze: maximum size for tensor at dimension {dim} is {max_len} but size is {size}"
+            )
+        }
+        sizes.push(size);
+        strides.push(if self.dims().is_empty() {
+            1
+        } else {
+            strides[dim]
+        });
+
+        if !self.dims().is_empty() {
+            sizes[dim] = ((sizes[dim] as f32 - size as f32) / step as f32 + 1.) as usize;
+            strides[dim] *= step;
+        }
+
+        let tensor_ = Tensor_ {
+            id: TensorId::new(),
+            storage: self.storage.clone(),
+            layout: Layout::new(sizes.into(), strides, self.layout.start_offset()),
+            op: BackpropOp::new1(self, Op::Reshape),
+            is_variable: false,
+            dtype: self.dtype,
+            device: self.device.clone(),
+        };
+        Ok(Tensor(Arc::new(tensor_)))
+    }
 }
 
 macro_rules! bin_trait {

@@ -5,6 +5,7 @@ extern crate intel_mkl_src;
 extern crate accelerate_src;
 
 use candle::{test_device, test_utils::to_vec3_round, Device, Result, Tensor};
+use candle_nn::ops::TopKOutput;
 
 fn softmax(device: &Device) -> Result<()> {
     let data = &[[[3f32, 1., 4.], [1., 5., 9.]], [[2., 1., 7.], [8., 2., 8.]]];
@@ -249,6 +250,29 @@ fn sigmoid(device: &Device) -> Result<()> {
     Ok(())
 }
 
+fn topk(device: &Device) -> Result<()> {
+    //  [[1, 3, 5],
+    //   [2, 4, 6]]
+    let x = Tensor::arange(1f32, 7f32, device)?
+        .reshape((3, 2))?
+        .t()?
+        .contiguous()?;
+    let TopKOutput { values, indices } = candle_nn::ops::topk_last_dim(&x, 2)?;
+    assert_eq!(
+        x.to_vec2::<f32>()?,
+        vec![vec![1f32, 3f32, 5f32], vec![2f32, 4f32, 6f32]]
+    );
+    assert_eq!(
+        values.to_vec2::<f32>()?,
+        vec![vec![5f32, 3f32], vec![6f32, 4f32]]
+    );
+    assert_eq!(
+        indices.to_vec2::<u32>()?,
+        vec![vec![2u32, 1u32], vec![2u32, 1u32]]
+    );
+    Ok(())
+}
+
 test_device!(ropei, ropei_cpu, ropei_gpu, ropei_metal);
 test_device!(rope, rope_cpu, rope_gpu, rope_metal);
 test_device!(rope_thd, rope_thd_cpu, rope_thd_gpu, rope_thd_metal);
@@ -258,3 +282,4 @@ test_device!(rms_norml, rms_norml_cpu, rms_norml_gpu, rms_norml_metal);
 test_device!(layer_norm, ln_cpu, ln_gpu, ln_metal);
 test_device!(layer_norml, lnl_cpu, lnl_gpu, lnl_metal);
 test_device!(sigmoid, sigmoid_cpu, sigmoid_gpu, sigmoid_metal);
+test_device!(topk, topk_cpu, topk_gpu, topk_metal);
