@@ -82,6 +82,19 @@ static __device__ __forceinline__ int get_int_from_uint8_aligned(const uint8_t *
 #define CC_RDNA2      (CC_OFFSET_AMD + 1030)
 #define CC_RDNA3      (CC_OFFSET_AMD + 1100)
 
+#if __CUDA_ARCH__ < MIN_CC_DP4A
+// Manually perform 8-bit dot product
+__device__ int dp4a(int a, int b, int c) {
+    int result = c;
+    for (int i = 0; i < 4; ++i) {
+        int8_t a_byte = (a >> (i * 8)) & 0xFF;
+        int8_t b_byte = (b >> (i * 8)) & 0xFF;
+        result += a_byte * b_byte;
+    }
+    return result;
+}
+#endif
+
 #define  MMQ_X_Q4_0_RDNA2  64
 #define  MMQ_Y_Q4_0_RDNA2  128
 #define NWARPS_Q4_0_RDNA2  8
