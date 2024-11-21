@@ -10,6 +10,48 @@ use crate::models::with_tracing::{linear_no_bias, Linear, RmsNorm};
 use candle::{DType, Device, Module, Result, Tensor, D};
 use candle_nn::{Activation, VarBuilder};
 use std::sync::Arc;
+use serde::Deserialize;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MistralConfig {
+    pub vocab_size: usize,
+    pub hidden_size: usize,
+    pub intermediate_size: usize,
+    pub num_hidden_layers: usize,
+    pub num_attention_heads: usize,
+    pub num_key_value_heads: Option<usize>,
+    pub hidden_act: Activation,
+    pub max_position_embeddings: usize,
+    pub rms_norm_eps: f64,
+    #[serde(default = "default_rope")]
+    pub rope_theta: f64,
+    pub sliding_window: usize,
+    pub use_flash_attn: bool,
+}
+
+fn default_rope() -> f64 {
+    10_000.0
+}
+
+impl MistralConfig {
+    pub fn into_config(self, use_flash_attn: bool) -> Config {
+        Config {
+            vocab_size: self.vocab_size,
+            hidden_size: self.hidden_size,
+            intermediate_size: self.intermediate_size,
+            num_hidden_layers: self.num_hidden_layers,
+            num_attention_heads: self.num_attention_heads,
+            num_key_value_heads: self.num_key_value_heads.unwrap_or(self.num_attention_heads),
+            hidden_act: self.hidden_act,
+            max_position_embeddings: self.max_position_embeddings,
+            rms_norm_eps: self.rms_norm_eps,
+            rope_theta: self.rope_theta,
+            sliding_window: self.sliding_window,
+            use_flash_attn,
+        }
+    }
+}
+
 
 fn default_num_attention_heads() -> usize {
     32
