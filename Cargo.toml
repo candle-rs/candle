@@ -75,7 +75,7 @@ ug-cuda = "0.0.2"
 ug-metal = "0.0.2"
 yoke = { version = "0.7.2", features = ["derive"] }
 zip = { version = "1.1.1", default-features = false }
-metal = { version = "0.27.0", features = ["mps"]}
+metal = { version = "0.28.0", features = ["mps"]}
 
 [profile.release-with-debug]
 inherits = "release"
