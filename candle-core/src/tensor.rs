@@ -1259,8 +1259,7 @@ impl Tensor {
             return Tensor::zeros(c_shape, self.dtype(), self.device());
         }
         let batching: usize = a_dims[..dim - 2].iter().product();
-        let batching_b: usize = b_dims[..dim - 2].iter().product();
-        if k != k2 || batching != batching_b {
+        if k != k2 || a_dims[..dim - 2] != b_dims[..dim - 2] {
             Err(Error::ShapeMismatchBinaryOp {
                 lhs: self.shape().clone(),
                 rhs: rhs.shape().clone(),
