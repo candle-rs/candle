@@ -1,7 +1,7 @@
 # Training
 
 
-Training starts with data. We're going to use the huggingface hub and 
+Training starts with data. We're going to use the huggingface hub and
 start with the Hello world dataset of machine learning, MNIST.
 
 Let's start with downloading `MNIST` from [huggingface](https://huggingface.co/datasets/mnist).
@@ -14,7 +14,7 @@ cargo add hf-hub
 This is going to be very hands-on for now.
 
 ```rust,ignore
-{{#include ../../../candle-examples/src/lib.rs:book_training_1}}
+{{#include ../lib.rs:book_training_1}}
 ```
 
 This uses the standardized `parquet` files from the `refs/convert/parquet` branch on every dataset.
@@ -23,7 +23,7 @@ Our handles are now [`parquet::file::serialized_reader::SerializedFileReader`].
 We can inspect the content of the files with:
 
 ```rust,ignore
-{{#include ../../../candle-examples/src/lib.rs:book_training_2}}
+{{#include ../lib.rs:book_training_2}}
 ```
 
 You should see something like:

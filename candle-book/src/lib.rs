@@ -123,8 +123,10 @@ let repo = Repo::with_revision(
 let repo = api.repo(repo);
 let test_parquet_filename = repo.get("mnist/test/0000.parquet")?;
 let train_parquet_filename = repo.get("mnist/train/0000.parquet")?;
-let test_parquet = SerializedFileReader::new(std::fs::File::open(test_parquet_filename)?)?;
-let train_parquet = SerializedFileReader::new(std::fs::File::open(train_parquet_filename)?)?;
+let test_parquet =
+    SerializedFileReader::new(std::fs::File::open(test_parquet_filename)?)?;
+let train_parquet =
+    SerializedFileReader::new(std::fs::File::open(train_parquet_filename)?)?;
 // ANCHOR_END: book_training_1
 // Ignore unused
 let _train = train_parquet;
