@@ -29,10 +29,10 @@ categories = ["science"]
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-ab_glyph = "0.2.23"
+ab_glyph = "0.2.29"
 accelerate-src = { version = "0.3.2" }
 anyhow = { version = "1", features = ["backtrace"] }
-byteorder = "1.4.3"
+byteorder = "1.5.0"
 candle = { path = "./candle-core", package = "candle-core", version = "0.8.1" }
 candle-datasets = { path = "./candle-datasets", version = "0.8.1" }
 candle-flash-attn = { path = "./candle-flash-attn", version = "0.8.1" }
@@ -41,40 +41,40 @@ candle-metal-kernels = { path = "./candle-metal-kernels", version = "0.8.1" }
 candle-nn = { path = "./candle-nn", version = "0.8.1" }
 candle-onnx = { path = "./candle-onnx", version = "0.8.1" }
 candle-transformers = { path = "./candle-transformers", version = "0.8.1" }
-clap = { version = "4.2.4", features = ["derive"] }
+clap = { version = "4.5.23", features = ["derive"] }
 criterion = { version = "0.5.1", default-features=false }
 cudarc = { version = "0.12.1", features = ["std", "cublas", "cublaslt", "curand", "driver", "nvrtc", "f16", "cuda-version-from-build-system", "dynamic-linking"], default-features=false }
 fancy-regex = "0.13.0"
-gemm = { version = "0.17.0", features = ["wasm-simd128-enable"] }
+gemm = { version = "0.17.1", features = ["wasm-simd128-enable"] }
 hf-hub = { version = "0.3.3", package = "candle-hf-hub" }
-half = { version = "2.3.1", features = ["num-traits", "use-intrinsics", "rand_distr"] }
+half = { version = "2.4.1", features = ["num-traits", "use-intrinsics", "rand_distr"] }
 hound = "3.5.1"
-image = { version = "0.25.2", default-features = false, features = ["jpeg", "png"] }
+image = { version = "0.25.5", default-features = false, features = ["jpeg", "png"] }
 imageproc = { version = "0.24.0", default-features = false }
 intel-mkl-src = { version = "0.8.1", features = ["mkl-static-lp64-iomp"] }
-libc = { version = "0.2.147" }
+libc = { version = "0.2.167" }
 log = "0.4"
-memmap2 = { version = "0.9.3", features = ["stable_deref_trait"] }
-num_cpus = "1.15.0"
-num-traits = "0.2.15"
+memmap2 = { version = "0.9.5", features = ["stable_deref_trait"] }
+num_cpus = "1.16.0"
+num-traits = "0.2.19"
 parquet = { version = "51.0.0" }
 rand = "0.8.5"
 rand_distr = "0.4.3"
-rayon = "1.7.0"
-safetensors = "0.4.1"
-serde = { version = "1.0.171", features = ["derive"] }
+rayon = "1.10.0"
+safetensors = "0.4.5"
+serde = { version = "1.0.215", features = ["derive"] }
 serde_plain = "1.0.2"
-serde_json = "1.0.99"
+serde_json = "1.0.133"
 thiserror = "1"
 tokenizers = { version = "0.19.1", default-features = false }
-tracing = "0.1.37"
-tracing-chrome = "0.7.1"
-tracing-subscriber = "0.3.7"
+tracing = "0.1.41"
+tracing-chrome = "0.7.2"
+tracing-subscriber = "0.3.19"
 ug = "0.0.2"
 ug-cuda = "0.0.2"
 ug-metal = "0.0.2"
-yoke = { version = "0.7.2", features = ["derive"] }
-zip = { version = "1.1.1", default-features = false }
+yoke = { version = "0.7.5", features = ["derive"] }
+zip = { version = "1.1.4", default-features = false }
 metal = { version = "0.27.0", features = ["mps"]}
 
 [profile.release-with-debug]
