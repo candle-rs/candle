@@ -328,9 +328,8 @@ impl Tensor {
                 op: "sort_last_dim",
             });
         }
-        let asort = self.arg_sort_last_dim(asc)?;
-        // let sorted = self.gather(&asort, crate::D::Minus1)?;
-        let sorted = self.clone();
+        let sorted = self.copy()?;
+        let asort = sorted.arg_sort_last_dim(asc)?;
         Ok((sorted, asort))
     }
 }
