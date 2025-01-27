@@ -1,6 +1,5 @@
-use std::io::Result;
-
-fn main() -> Result<()> {
-    prost_build::compile_protos(&["src/onnx.proto3"], &["src/"])?;
+fn main() -> anyhow::Result<()> {
+    let fds = protox::compile(&["src/onnx.proto3"], &["src/"])?;
+    prost_build::compile_fds(fds)?;
     Ok(())
 }
