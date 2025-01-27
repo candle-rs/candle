@@ -65,7 +65,9 @@ impl LogitsProcessor {
     fn sample_topp(&self, logits: &Tensor, top_p: f32) -> Result<u32> {
         let mut prs: Vec<f32> = logits.to_vec1()?;
         let argsort_indices: Vec<u32> = logits.arg_sort_last_dim(false)?.to_vec1()?;
-
+        // // Slower approach on CPU.
+        // let mut argsort_indices = (0..prs.len()).collect::<Vec<_>>();
+        // argsort_indices.sort_by(|&i, &j| prs[j].total_cmp(&prs[i]));
         // Clamp smaller probabilities to zero.
         let mut cumsum = 0.;
         for index in &argsort_indices {
