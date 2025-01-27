@@ -83,11 +83,17 @@ mod cuda {
             let ncols = self.last_dim;
             let nrows = elem_count / ncols;
             let ncols_pad = next_power_of_2(ncols);
+
+            // Determine the number of threads per block and blocks per row
+            let max_threads_per_block = 1024;
+            let threads_per_block = max_threads_per_block.min(ncols_pad);
+            let blocks_per_row = (ncols_pad + threads_per_block - 1) / threads_per_block;
+
             let params = (&slice, &dst, ncols as i32, ncols_pad as i32);
             let cfg = LaunchConfig {
-                grid_dim: (1, nrows as u32, 1),
-                block_dim: (ncols_pad as u32, 1, 1),
-                shared_mem_bytes: (ncols_pad * std::mem::size_of::<u32>()) as u32,
+                grid_dim: (blocks_per_row as u32, nrows as u32, 1),
+                block_dim: (threads_per_block as u32, 1, 1),
+                shared_mem_bytes: (threads_per_block * std::mem::size_of::<u32>()) as u32,
             };
             unsafe { func.launch(cfg, params) }.w()?;
             Ok(S::U32(dst))
