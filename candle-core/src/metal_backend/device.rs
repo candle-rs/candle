@@ -2,7 +2,6 @@ use crate::{DType, Result};
 use candle_metal_kernels::Kernels;
 use metal::{Buffer, CommandBuffer, CommandQueue, MTLResourceOptions, NSUInteger};
 use std::collections::HashMap;
-use std::ffi::c_void;
 use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -235,7 +234,7 @@ impl MetalDevice {
     pub fn new_buffer_with_data<T>(&self, data: &[T]) -> Result<Arc<Buffer>> {
         let size = core::mem::size_of_val(data) as NSUInteger;
         let new_buffer = self.device.new_buffer_with_data(
-            data.as_ptr() as *const c_void,
+            data.as_ptr().cast(),
             size,
             MTLResourceOptions::StorageModeManaged,
         );
