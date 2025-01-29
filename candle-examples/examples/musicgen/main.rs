@@ -12,6 +12,8 @@ extern crate accelerate_src;
 
 mod musicgen_model;
 
+use std::borrow::BorrowMut;
+
 use musicgen_model::{GenConfig, MusicgenForConditionalGeneration};
 
 use anyhow::{Error as E, Result};
@@ -39,7 +41,7 @@ struct Args {
 
     #[arg(
         long,
-        default_value = "90s rock song with loud guitars and heavy drums"
+        default_value = "90s rock song with loud guitars and heavy drums."
     )]
     prompt: String,
 }
@@ -83,8 +85,22 @@ fn main() -> Result<()> {
     println!("tokens: {tokens:?}");
     let tokens = Tensor::new(tokens.as_slice(), &device)?.unsqueeze(0)?;
     println!("{tokens:?}");
-    let embeds = model.text_encoder.forward(&tokens)?;
-    println!("{embeds}");
+
+    let token_type_ids = tokens.ones_like()?;
+    println!("{token_type_ids}");
+
+    //let embeds = model.text_encoder.forward(&tokens)?;
+
+    //println!("{embeds}");
+    let musicgen_config = musicgen_model::GenConfig::small().musicgen;
+    let pad_token_id = musicgen_config.pad_token_id as f64;
+    let num_codebooks = musicgen_config.num_codebooks;
+    let decoder_input_ids =
+        (Tensor::ones((num_codebooks, 1), DType::I64, &device)? * pad_token_id)?;
+    let output = model.forward(&tokens, &decoder_input_ids, Some(&token_type_ids))?;
+    println!("{output}");
+    //let audio_encoder_outputs = model.audio_encoder.encode(&embeds)?;
+    //println!("{audio_encoder_outputs}");
 
     Ok(())
 }
