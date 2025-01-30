@@ -172,10 +172,6 @@ export const MODELS = {
         max_length: 300,
       },
       simplification: {
-        prefix: "translate English to Romanian: ",
-        max_length: 300,
-      },
-      simplification: {
         prefix: "Paraphrase this: ",
         max_length: 300,
       },
