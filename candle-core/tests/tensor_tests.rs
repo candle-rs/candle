@@ -1682,3 +1682,21 @@ fn pow() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn normalize() -> Result<()> {
+    let t = Tensor::arange(1f32, 10f32, &Device::Cpu)
+        .unwrap()
+        .reshape((3, 3))
+        .unwrap();
+    let res = t.normalize(2.0, 1).unwrap();
+    assert_eq!(
+        test_utils::to_vec2_round(&res, 4)?,
+        [
+            [0.2673, 0.5345, 0.8018],
+            [0.4558, 0.5698, 0.6838],
+            [0.5026, 0.5744, 0.6462]
+        ]
+    );
+    Ok(())
+}
