@@ -161,6 +161,9 @@ There are also some wasm examples for whisper and
 For LLaMA2, run the following command to retrieve the weight files and start a
 test server:
 ```bash
+# install target platform 'wasm32-unknown-unknown'
+rustup target add wasm32-unknown-unknown
+
 cd candle-wasm-examples/llama2-c
 wget https://huggingface.co/spaces/lmz/candle-llama2/resolve/main/model.bin
 wget https://huggingface.co/spaces/lmz/candle-llama2/resolve/main/tokenizer.json
