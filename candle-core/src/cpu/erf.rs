@@ -17,16 +17,10 @@ mod evaluate {
     ///
     /// Returns 0 for a 0 length coefficient slice
     pub fn polynomial(z: f64, coeff: &[f64]) -> f64 {
-        let n = coeff.len();
-        if n == 0 {
-            return 0.0;
+        match coeff {
+            [] => 0.0,
+            [.., sum] => coeff.iter().rev().skip(1).fold(*sum, |sum, c| c + z * sum),
         }
-
-        let mut sum = *coeff.last().unwrap();
-        for c in coeff[0..n - 1].iter().rev() {
-            sum = *c + z * sum;
-        }
-        sum
     }
 }
 use std::f64;
